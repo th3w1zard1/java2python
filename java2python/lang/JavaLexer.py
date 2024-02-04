@@ -1,8 +1,16 @@
 # $ANTLR 3.1.3 Mar 18, 2009 10:09:25 Java.g 2012-01-29 13:54:05
 
+import re
 import sys
 from antlr3 import *
 from antlr3.compat import set, frozenset
+
+def version_str_to_tuple(version_str):
+    """Convert a version string into a tuple of integers."""
+    # Extract numeric parts of the version string
+    numbers = re.findall(r'\d+', version_str)
+    # Convert numeric strings to integers and return as a tuple
+    return tuple(map(int, numbers))
 
 
 # for convenience in actions

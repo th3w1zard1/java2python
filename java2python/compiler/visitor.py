@@ -35,6 +35,8 @@ class Base(object):
 
     def accept(self, node, memo):
         """ Accept a node, possibly creating a child visitor. """
+        if node.token is None:
+            return  # FIXME
         tokType = tokens.map.get(node.token.type)
         missing = lambda node, memo:self
         call = getattr(self, 'accept{0}'.format(tokens.title(tokType)), missing)
@@ -45,7 +47,7 @@ class Base(object):
     def insertComments(self, tmpl, tree, index, memo):
         """ Add comments to the template from tokens in the tree. """
         prefix = self.config.last('commentPrefix', '# ')
-        cache, parser, comTypes = memo.comments, tree.parser, tokens.commentTypes
+        cache, parser, comTypes = memo.comments, tree.parser if hasattr(tree, "parser") else None, tokens.commentTypes
         comNew = lambda t:t.type in comTypes and (t.index not in cache)
 
         for tok in ifilter(comNew, parser.input.tokens[memo.last:index]):
@@ -75,10 +77,12 @@ class Base(object):
 
     def walk(self, tree, memo=None):
         """ Depth-first visiting of the given AST. """
-        if not tree:
+        if not tree or not hasattr(tree, "type"):
             return
         memo = Memo() if memo is None else memo
-        comIns = self.insertComments
+        def test(*args, **kwargs):
+            pass
+        comIns = test #self.insertComments
         comIns(self, tree, tree.tokenStartIndex, memo)
         visitor = self.accept(tree, memo)
         if visitor:
@@ -86,7 +90,7 @@ class Base(object):
                 visitor.walk(child, memo)
                 comIns(visitor, child, child.tokenStopIndex, memo)
         comIns(self, tree, tree.tokenStopIndex, memo)
-        if tree.isJavaSource:
+        if getattr(tree, "isJavaSource", False):
             comIns(self, tree, len(tree.parser.input.tokens), memo)
         # fixme: we're calling the mutators far too frequently instead
         # of only once per object after its walk is finished.
@@ -742,11 +746,18 @@ class Expression(Base):
             if node.withinExpr:
                 name = node.firstChildOfType(tokens.IDENT).text
                 handler = self.configHandler('VariableNaming')
-                rename = handler(name)
-                block = self.parents(lambda x:x.isMethod).next()
-                if pre:
+
+                left = None  # FIXME: handler can be None.
+                rename = None
+                if handler is None:
                     left = name
                 else:
+                    rename = handler(name)
+
+                block = self.parents(lambda x: x.isMethod).next()
+                if pre:
+                    left = name
+                elif left is None:
                     left = rename
                     block.adopt(factory(fs=FS.l+' = '+FS.r, left=rename, right=name))
                 self.left = factory(parent=self, fs=FS.l, left=left)
